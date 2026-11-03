@@ -1,0 +1,4 @@
+# Project files are personal music, never commit them
+*.flp
+testdata/
+.claude/

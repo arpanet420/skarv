@@ -1,0 +1,535 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Skarv – FL project splicer</title>
+<script>try{var t=localStorage.getItem('skarv-tema');if(t)document.documentElement.setAttribute('data-tema',t);}catch(e){}</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --f-display:"Bricolage Grotesque", "Figtree", sans-serif;
+  --f-text:"Figtree", "Bricolage Grotesque", sans-serif;
+  --paper:#15120e; --surface:#1f1b16; --raised:#2a251e; --band:#26211b; --zebra:#231f19; --hover:#302a22;
+  --line:#3a3329; --ink:#efe7da; --ink-2:#b3a896; --ink-3:#857b6c;
+  --accent:#ff8a3d; --accent-ink:#1b1209; --accent-soft:#3a2617;
+  --warn:#f0b33c; --warn-ink:#1d1504; --bad:#e5534b; --bad-ink:#ffffff; --ok:#4fae6a; --ok-ink:#0b1a0f;
+  --p1:#3fb8a8; --p2:#9b8cf0; --p3:#e87a8f; --p4:#5aa9e6; --p5:#d6b77a; --p6:#f08a6b; --p-ink:#14110c;
+  --grid:#2c2720; --grid-bar:#3d362c;
+  --r-sm:4px; --r-md:8px; --r-lg:14px;
+  --lift:0 14px 40px -12px rgba(0,0,0,.6);
+  --shade:rgba(0,0,0,.25);
+}
+html[data-tema="dagsljus"]{
+  --paper:#f3ede2; --surface:#fbf8f2; --raised:#ffffff; --band:#ebe3d4; --zebra:#f5efe5; --hover:#efe6d6;
+  --line:#ddd2bf; --ink:#1d1812; --ink-2:#5d5446; --ink-3:#8a7f6e;
+  --accent:#e2621a; --accent-ink:#ffffff; --accent-soft:#f8dcc8;
+  --grid:#e6dccb; --grid-bar:#cfc2ac; --p-ink:#14110c;
+  --lift:0 14px 40px -14px rgba(60,40,10,.35); --shade:rgba(60,40,10,.12);
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--paper);color:var(--ink);font:15px/1.45 var(--f-text);font-variant-numeric:tabular-nums;min-height:100vh}
+button,input,select{font:inherit;color:inherit}
+.wrap{max-width:1320px;margin:0 auto;padding:18px 20px 60px}
+
+/* header */
+.top{display:flex;align-items:flex-end;gap:16px;flex-wrap:wrap;margin-bottom:16px}
+.brand h1{font:800 34px/1 var(--f-display);letter-spacing:-.03em;margin:0}
+.brand h1 span{color:var(--accent)}
+.brand p{margin:4px 0 0;color:var(--ink-2);font-size:14px}
+.top .sp{flex:1}
+.micro{font:700 11px/1 var(--f-text);letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}
+.seg{display:inline-flex;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);padding:2px}
+.seg button{border:0;background:transparent;padding:6px 11px;border-radius:var(--r-sm);cursor:pointer;color:var(--ink-2);font-weight:600;font-size:13px}
+.seg button[aria-pressed="true"]{background:var(--raised);color:var(--ink);box-shadow:0 1px 0 var(--shade)}
+.seg button:focus-visible,.btn:focus-visible,.ico:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* buttons */
+.btn{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line);background:var(--raised);padding:8px 14px;border-radius:var(--r-md);cursor:pointer;font-weight:600;font-size:14px}
+.btn:hover{background:var(--hover)}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:700}
+.btn.primary:hover{filter:brightness(1.08)}
+.btn:disabled{opacity:.45;cursor:not-allowed;filter:none}
+.btn svg{width:16px;height:16px}
+.ico{border:0;background:transparent;width:28px;height:28px;display:inline-grid;place-items:center;border-radius:var(--r-sm);cursor:pointer;color:var(--ink-2)}
+.ico:hover{background:var(--hover);color:var(--ink)}
+.ico:disabled{opacity:.3;cursor:default;background:transparent}
+.ico svg{width:16px;height:16px}
+
+/* chips */
+.chip{display:inline-block;font:700 10.5px/1 var(--f-text);letter-spacing:.06em;text-transform:uppercase;padding:4px 6px;border-radius:var(--r-sm);white-space:nowrap}
+.chip.base{background:var(--accent);color:var(--accent-ink)}
+.chip.warn{background:var(--warn);color:var(--warn-ink)}
+.chip.bad{background:var(--bad);color:var(--bad-ink)}
+.chip.ok{background:var(--ok);color:var(--ok-ink)}
+.chip.mute{background:transparent;color:var(--ink-3);box-shadow:inset 0 0 0 1px var(--line)}
+.chip.proj{color:var(--p-ink)}
+
+/* drop zone */
+.drop{border:1.5px dashed var(--line);border-radius:var(--r-lg);background:var(--surface);padding:34px 24px;display:grid;grid-template-columns:auto 1fr auto;gap:20px;align-items:center;transition:background .15s,border-color .15s}
+.drop.compact{padding:12px 16px;grid-template-columns:auto 1fr auto}
+.drop.compact .drop-art{width:34px;height:34px}
+.drop.compact h2{font-size:17px}
+.drop.compact p{display:none}
+.drop.over{border-color:var(--accent);background:var(--accent-soft)}
+.drop-art{width:64px;height:64px;color:var(--accent)}
+.drop h2{font:700 24px/1.1 var(--f-display);letter-spacing:-.02em;margin:0}
+.drop p{margin:6px 0 0;color:var(--ink-2);max-width:62ch}
+.drop.busy h2::after{content:" · reading…";color:var(--accent)}
+.err{margin-top:10px;background:var(--bad);color:var(--bad-ink);padding:10px 14px;border-radius:var(--r-md);font-weight:600}
+
+/* timeline panel */
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);margin-top:16px}
+.panel-head{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:14px 16px;border-bottom:1px solid var(--line)}
+.panel-head h2{font:700 20px/1 var(--f-display);letter-spacing:-.02em;margin:0}
+.panel-head .sp{flex:1}
+.ctl{display:flex;align-items:center;gap:8px}
+.ctl select,.ctl input[type=range]{accent-color:var(--accent)}
+select{background:var(--raised);border:1px solid var(--line);border-radius:var(--r-sm);padding:5px 8px}
+
+.tl{display:grid;grid-template-columns:270px 1fr}
+.tl-labels{border-right:1px solid var(--line)}
+.tl-scroll{overflow-x:auto;position:relative}
+.tl-inner{position:relative}
+.ruler{height:30px;position:relative;background:var(--band);border-bottom:1px solid var(--line)}
+.ruler span{position:absolute;top:8px;font-size:11.5px;color:var(--ink-3);transform:translateX(4px);font-weight:600}
+.label-head{height:30px;background:var(--band);border-bottom:1px solid var(--line);display:flex;align-items:center;padding:0 14px}
+.lane{height:96px;position:relative;border-bottom:1px solid var(--line)}
+.lane:nth-child(even of .lane){background:var(--zebra)}
+.lane.is-sel{background:var(--hover)}
+.lane-label{height:96px;padding:10px 8px 10px 14px;border-bottom:1px solid var(--line);display:grid;grid-template-columns:1fr auto;gap:2px 6px;cursor:pointer;box-shadow:inset 5px 0 0 var(--pc)}
+.lane-label:hover{background:var(--hover)}
+.lane-label.is-sel{background:var(--hover)}
+.lane-label .nm{font:700 16px/1.15 var(--f-display);letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lane-label .meta{color:var(--ink-2);font-size:12.5px;grid-column:1}
+.lane-label .chips{display:flex;gap:4px;flex-wrap:wrap;grid-column:1;margin-top:2px}
+.lane-label .tools{grid-row:1 / span 3;grid-column:2;display:flex;flex-direction:column;align-items:center}
+.gridlines{position:absolute;inset:0;pointer-events:none;
+  background-image:linear-gradient(to right,var(--grid-bar) 1px,transparent 1px),linear-gradient(to right,var(--grid) 1px,transparent 1px);
+  background-size:calc(var(--bar) * 4) 100%, var(--bar) 100%}
+.block{position:absolute;top:12px;height:72px;border-radius:var(--r-sm);background:var(--pc);color:var(--p-ink);cursor:grab;touch-action:none;overflow:hidden;box-shadow:0 2px 0 var(--shade);user-select:none}
+.block:active,.block.drag{cursor:grabbing;box-shadow:var(--lift);z-index:3}
+.block .bt{position:absolute;left:8px;top:6px;right:8px;font:800 13px/1 var(--f-display);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;z-index:1}
+.block .bl{position:absolute;right:8px;bottom:5px;font:700 11px/1 var(--f-text);opacity:.75;z-index:1}
+.block svg{position:absolute;left:0;top:22px;width:100%;height:46px}
+.block svg rect{fill:var(--p-ink);opacity:.38}
+.block.empty{background:transparent;box-shadow:inset 0 0 0 2px var(--pc);color:var(--ink-2)}
+.tl-empty{padding:40px 20px;text-align:center;color:var(--ink-3)}
+.tl-empty strong{display:block;font:700 18px/1.2 var(--f-display);color:var(--ink-2);margin-bottom:4px}
+
+/* lower */
+.lower{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:16px;margin-top:16px;align-items:start}
+.tbl{width:100%;border-collapse:collapse;font-size:14px}
+.tbl th{position:sticky;top:0;background:var(--band);text-align:left;font:700 11px/1 var(--f-text);letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);padding:10px 12px}
+.tbl td{padding:0 12px;height:44px;border-top:1px solid var(--line)}
+.tbl tbody tr:nth-child(even){background:var(--zebra)}
+.tbl tbody tr:hover{background:var(--hover)}
+.tbl tbody tr{box-shadow:inset 5px 0 0 var(--pc,transparent)}
+.tbl tbody tr.is-sel{background:var(--hover)}
+.tbl .num{text-align:right;font-weight:700}
+.tbl .n{font:800 17px/1 var(--f-display);width:54px}
+.tbl .sub{color:var(--ink-2);font-size:12.5px}
+.tbl .chn{max-width:340px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tbl-wrap{max-height:520px;overflow:auto;border-radius:0 0 var(--r-lg) var(--r-lg)}
+
+.sum{padding:16px}
+.figs{display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:6px;margin-bottom:14px}
+.fig{background:var(--raised);border-radius:var(--r-sm);padding:10px 12px}
+.fig b{display:block;font:800 26px/1 var(--f-display);letter-spacing:-.02em}
+.fig:first-child{background:var(--accent-soft)}
+.fig:first-child b{font-size:32px}
+.warns{list-style:none;margin:0 0 14px;padding:0;display:grid;gap:6px}
+.warns li{display:grid;grid-template-columns:auto 1fr;gap:8px;align-items:start;font-size:13px;color:var(--ink-2);background:var(--raised);padding:8px 10px;border-radius:var(--r-sm)}
+.field{display:grid;gap:6px;margin-bottom:12px}
+.field input{background:var(--raised);border:1px solid var(--line);border-radius:var(--r-sm);padding:9px 10px;width:100%}
+.field input:focus{outline:2px solid var(--accent);outline-offset:0;border-color:var(--accent)}
+.note{color:var(--ink-3);font-size:12.5px;margin:12px 0 0}
+.done{background:var(--ok);color:var(--ok-ink);padding:10px 12px;border-radius:var(--r-sm);font-weight:600;font-size:13.5px;margin-top:10px}
+
+@media (max-width: 900px){
+  .lower{grid-template-columns:1fr}
+}
+@media (max-width: 700px){
+  .wrap{padding:14px 16px 40px}
+  .brand h1{font-size:28px}
+  .drop{grid-template-columns:1fr;text-align:left}
+  .drop-art{display:none}
+  .tl{grid-template-columns:150px 1fr}
+  .lane-label .meta{display:none}
+  .lane-label .nm{font-size:14px}
+  .figs{grid-template-columns:1fr 1fr}
+  .tbl .chn{max-width:140px}
+  .tbl .hide-s{display:none}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <h1>Skarv<span>.</span></h1>
+    </div>
+    <div class="sp"></div>
+    <div class="ctl"><span class="micro">Theme</span>
+      <div class="seg" id="tema"><button data-t="">Studio</button><button data-t="dagsljus">Daylight</button></div>
+    </div>
+  </header>
+
+  <label class="drop" id="drop">
+    <svg class="drop-art" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="14" width="22" height="16" rx="2"/><rect x="36" y="34" width="22" height="16" rx="2"/><path d="M28 22h8a6 6 0 0 1 6 6v6"/><path d="M38 30l4 4 4-4"/></svg>
+    <div>
+      <h2 id="drop-title">Drop .flp files here</h2>
+      <p>Drag in two or more projects, or click to choose. The top project is the base: its master and project settings are kept. The others' channels, patterns, mixer inserts, effects and automation are added on new channels and inserts. The base tempo is used unless Tempo is set to Per project.</p>
+    </div>
+    <span class="btn"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 3v10M3 8h10"/></svg>Choose files</span>
+    <input type="file" id="file" accept=".flp" multiple hidden>
+  </label>
+  <div id="err"></div>
+
+  <section class="panel" id="tl-panel">
+    <div class="panel-head">
+      <h2>Timeline</h2>
+      <span class="micro" id="tl-info"></span>
+      <div class="sp"></div>
+      <div class="ctl"><span class="micro">Gap</span>
+        <select id="gap"><option value="0">0 bars</option><option value="1">1 bar</option><option value="2">2 bars</option><option value="4" selected>4 bars</option><option value="8">8 bars</option></select>
+      </div>
+      <button class="btn" id="arrange"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M2 5h5M9 11h5M7 5l2 0M2 11h5"/><path d="M7 3v4M9 9v4"/></svg>Place in sequence</button>
+      <div class="ctl"><span class="micro">Tracks</span>
+        <div class="seg" id="tracks"><button data-v="1" aria-pressed="true" title="Each project gets its own playlist tracks below the previous one">Separate</button><button data-v="0" title="Clips keep the track numbers from the original">Shared</button></div>
+      </div>
+      <div class="ctl"><span class="micro">Channel groups</span>
+        <div class="seg" id="groups"><button data-v="1" aria-pressed="true" title="One Channel rack filter group per project">Per project</button><button data-v="0" title="Keep each project's own groups">Keep</button></div>
+      </div>
+      <div class="ctl"><span class="micro">Markers</span>
+        <div class="seg" id="markers"><button data-v="1" aria-pressed="true" title="Add a time marker with the project name where each project starts">Project names</button><button data-v="0" title="No extra time markers">Off</button></div>
+      </div>
+      <div class="ctl"><span class="micro">Tempo</span>
+        <div class="seg" id="tempo"><button data-v="1" aria-pressed="false" title="Add a tempo automation clip that switches to each project's BPM where it starts">Per project</button><button data-v="0" aria-pressed="true" title="Use the base tempo for the whole song">Base only</button></div>
+      </div>
+      <div class="ctl"><span class="micro">Zoom</span><input type="range" id="zoom" min="4" max="60" value="16"></div>
+    </div>
+    <div id="tl"></div>
+  </section>
+
+  <div class="lower">
+    <section class="panel" style="margin-top:0">
+      <div class="panel-head"><h2>Mixer after splicing</h2><span class="micro" id="mix-info"></span></div>
+      <div class="tbl-wrap" id="mix"></div>
+    </section>
+    <section class="panel" style="margin-top:0">
+      <div class="panel-head"><h2>Result</h2></div>
+      <div class="sum" id="sum"></div>
+    </section>
+  </div>
+</div>
+
+<script src="flpmerge.js"></script>
+<script>
+(function () {
+  'use strict';
+  const S = { projects: [], baseId: null, separateTracks: true, groupPerProject: true, projectMarkers: true, tempoSteps: false, zoom: 16, sel: null, seq: 0, result: null, error: null };
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const PCOL = ['--p1', '--p2', '--p3', '--p4', '--p5', '--p6'];
+  const ICON = {
+    up: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10l4-4 4 4"/></svg>',
+    down: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l4 4 4-4"/></svg>',
+    x: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8"/></svg>',
+    dl: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v8M4.5 6.5L8 10l3.5-3.5M3 13h10"/></svg>',
+  };
+
+  // ---------- theme ----------
+  function setTheme(t) {
+    if (t) document.documentElement.setAttribute('data-tema', t); else document.documentElement.removeAttribute('data-tema');
+    try { localStorage.setItem('skarv-tema', t); } catch (e) {}
+    for (const b of $('tema').children) b.setAttribute('aria-pressed', String(b.dataset.t === t));
+  }
+  $('tema').addEventListener('click', e => { const b = e.target.closest('button'); if (b) setTheme(b.dataset.t); });
+  setTheme(document.documentElement.getAttribute('data-tema') || '');
+
+  // ---------- loading ----------
+  const drop = $('drop');
+  ['dragenter', 'dragover'].forEach(t => document.addEventListener(t, e => { e.preventDefault(); drop.classList.add('over'); }));
+  ['dragleave', 'drop'].forEach(t => document.addEventListener(t, e => { e.preventDefault(); if (t === 'drop' || !e.relatedTarget) drop.classList.remove('over'); }));
+  document.addEventListener('drop', e => addFiles(e.dataTransfer.files));
+  $('file').addEventListener('change', e => { addFiles(e.target.files); e.target.value = ''; });
+
+  async function addFiles(list) {
+    const files = [...list].filter(f => /\.flp$/i.test(f.name));
+    if (!files.length) { showError('No .flp files found in what you dropped.'); return; }
+    drop.classList.add('busy');
+    const errs = [];
+    for (const f of files) {
+      try {
+        const buf = new Uint8Array(await f.arrayBuffer());
+        const proj = FLP.parseFLP(buf, f.name);
+        const id = ++S.seq;
+        S.projects.push({ id, proj, color: PCOL[(id - 1) % PCOL.length], offsetBars: 0 });
+        if (S.baseId === null) S.baseId = id;
+      } catch (ex) { errs.push(`${f.name}: ${ex.message}`); }
+    }
+    drop.classList.remove('busy');
+    showError(errs.join(' · '));
+    arrange();
+  }
+  function showError(msg) { $('err').innerHTML = msg ? `<div class="err">${esc(msg)}</div>` : ''; }
+
+  // ---------- helpers ----------
+  const base = () => S.projects.find(p => p.id === S.baseId) || S.projects[0];
+  const barTicks = p => p.proj.ppq * 4;
+  const lenBars = p => Math.ceil(p.proj.lengthTicks / barTicks(p));
+  const shownBars = p => Math.max(lenBars(p), 2);
+  function arrange() {
+    const gap = +$('gap').value;
+    let at = 0;
+    for (const p of S.projects) { p.offsetBars = at; at += lenBars(p) + (lenBars(p) ? gap : 0); }
+    render();
+  }
+
+  // ---------- timeline ----------
+  function render() {
+    const tl = $('tl');
+    drop.classList.toggle('compact', S.projects.length > 0);
+    $('drop-title').textContent = S.projects.length ? 'Add more projects' : 'Drop .flp files here';
+    if (!S.projects.length) {
+      tl.innerHTML = '<div class="tl-empty"><strong>No projects yet</strong>Drop at least two .flp files above and they show up here as blocks you can move.</div>';
+      $('tl-info').textContent = '';
+      renderResult();
+      return;
+    }
+    const z = S.zoom;
+    const total = Math.max(...S.projects.map(p => p.offsetBars + shownBars(p))) + 16;
+    const width = total * z;
+    const step = z >= 24 ? 1 : z >= 10 ? 4 : 8;
+    let ruler = '';
+    for (let b = 0; b < total; b += step) ruler += `<span style="left:${b * z}px">${b + 1}</span>`;
+
+    let labels = '<div class="label-head micro">Project</div>';
+    let lanes = '';
+    S.projects.forEach((p, i) => {
+      const P = p.proj, isBase = p.id === base().id;
+      const chips = [];
+      if (isBase) chips.push('<span class="chip base">Base · master</span>');
+      const b = base().proj;
+      if (!isBase && P.tempo && b.tempo && Math.abs(P.tempo - b.tempo) > 0.01) chips.push(S.tempoSteps
+        ? `<span class="chip ok" title="The tempo steps to ${P.tempo} BPM here">${P.tempo} BPM</span>`
+        : `<span class="chip warn" title="The base tempo ${b.tempo} BPM is used">${P.tempo} BPM</span>`);
+      if (!isBase && P.major > b.major) chips.push('<span class="chip warn" title="Newer FL version than the base">Newer FL</span>');
+      if (!lenBars(p)) chips.push('<span class="chip mute">Empty playlist</span>');
+      const sel = S.sel === p.id ? ' is-sel' : '';
+      labels += `<div class="lane-label${sel}" style="--pc:var(${p.color})" data-id="${p.id}">
+        <div class="nm" title="${esc(P.fileName)}">${esc(P.fileName.replace(/\.flp$/i, ''))}</div>
+        <div class="meta">FL ${esc(P.version.split('.').slice(0, 2).join('.'))} · ${P.tempo ?? '–'} BPM · ${P.channels.length} ch · ${P.usedInserts.length} ins</div>
+        <div class="chips">${chips.join('')}</div>
+        <div class="tools">
+          <button class="ico" data-act="up" ${i === 0 ? 'disabled' : ''} title="Move up">${ICON.up}</button>
+          <button class="ico" data-act="down" ${i === S.projects.length - 1 ? 'disabled' : ''} title="Move down">${ICON.down}</button>
+          <button class="ico" data-act="rm" title="Remove">${ICON.x}</button>
+        </div></div>`;
+      const w = shownBars(p) * z;
+      lanes += `<div class="lane${sel}" data-id="${p.id}"><div class="gridlines"></div>
+        <div class="block${lenBars(p) ? '' : ' empty'}" data-id="${p.id}" style="--pc:var(${p.color});left:${p.offsetBars * z}px;width:${w}px">
+          <div class="bt">${esc(P.fileName.replace(/\.flp$/i, ''))}</div>
+          ${miniClips(p, w)}
+          <div class="bl">${p.offsetBars + 1}–${p.offsetBars + Math.max(lenBars(p), 1)}</div>
+        </div></div>`;
+    });
+    tl.innerHTML = `<div class="tl" style="--bar:${z}px">
+      <div class="tl-labels">${labels}</div>
+      <div class="tl-scroll" id="tl-scroll"><div class="tl-inner" style="width:${width}px">
+        <div class="ruler">${ruler}</div>${lanes}</div></div></div>`;
+    const end = Math.max(...S.projects.map(p => p.offsetBars + lenBars(p)));
+    $('tl-info').textContent = `${S.projects.length} projects · ${end} bars total`;
+    scheduleMerge();
+  }
+
+  function miniClips(p, w) {
+    const P = p.proj, items = P.items;
+    if (!items.length) return '';
+    const bt = barTicks(p), rows = Math.max(1, Math.min(P.tracksUsed, 12));
+    const lb = shownBars(p);
+    let r = '';
+    for (const it of items.slice(0, 1500)) {
+      const tr = Math.min(it.track, rows - 1);
+      const x = it.pos / bt / lb * 100, wd = Math.max(it.len / bt / lb * 100, .4);
+      r += `<rect x="${x.toFixed(2)}" y="${(tr / rows * 100).toFixed(2)}" width="${wd.toFixed(2)}" height="${(100 / rows * .78).toFixed(2)}" rx=".6"/>`;
+    }
+    return `<svg viewBox="0 0 100 100" preserveAspectRatio="none">${r}</svg>`;
+  }
+
+  // label actions
+  $('tl').addEventListener('click', e => {
+    const lab = e.target.closest('.lane-label'); if (!lab) return;
+    const id = +lab.dataset.id, i = S.projects.findIndex(p => p.id === id);
+    const act = e.target.closest('[data-act]');
+    if (act) {
+      const a = act.dataset.act;
+      if (a === 'rm') { S.projects.splice(i, 1); if (S.baseId === id) S.baseId = S.projects[0] ? S.projects[0].id : null; }
+      if (a === 'up' && i > 0) [S.projects[i - 1], S.projects[i]] = [S.projects[i], S.projects[i - 1]];
+      if (a === 'down' && i < S.projects.length - 1) [S.projects[i + 1], S.projects[i]] = [S.projects[i], S.projects[i + 1]];
+      if (a !== 'rm') S.baseId = S.projects[0].id;
+      arrange();
+      return;
+    }
+    S.sel = S.sel === id ? null : id;
+    render();
+  });
+
+  // dragging blocks
+  let drag = null;
+  $('tl').addEventListener('pointerdown', e => {
+    const blk = e.target.closest('.block'); if (!blk) return;
+    const p = S.projects.find(q => q.id === +blk.dataset.id);
+    drag = { p, blk, x0: e.clientX, start: p.offsetBars };
+    blk.setPointerCapture(e.pointerId); blk.classList.add('drag');
+  });
+  $('tl').addEventListener('pointermove', e => {
+    if (!drag) return;
+    const nb = Math.max(0, drag.start + Math.round((e.clientX - drag.x0) / S.zoom));
+    if (nb !== drag.p.offsetBars) {
+      drag.p.offsetBars = nb;
+      drag.blk.style.left = nb * S.zoom + 'px';
+      drag.blk.querySelector('.bl').textContent = `${nb + 1}–${nb + Math.max(lenBars(drag.p), 1)}`;
+    }
+  });
+  const endDrag = () => { if (!drag) return; drag.blk.classList.remove('drag'); const moved = drag.p.offsetBars !== drag.start; drag = null; if (moved) render(); };
+  $('tl').addEventListener('pointerup', endDrag);
+  $('tl').addEventListener('pointercancel', endDrag);
+
+  $('arrange').addEventListener('click', arrange);
+  $('gap').addEventListener('change', arrange);
+  $('zoom').addEventListener('input', e => { S.zoom = +e.target.value; render(); });
+  $('tracks').addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    S.separateTracks = b.dataset.v === '1';
+    for (const x of $('tracks').children) x.setAttribute('aria-pressed', String(x === b));
+    scheduleMerge();
+  });
+
+  $('groups').addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    S.groupPerProject = b.dataset.v === '1';
+    for (const x of $('groups').children) x.setAttribute('aria-pressed', String(x === b));
+    scheduleMerge();
+  });
+
+  $('markers').addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    S.projectMarkers = b.dataset.v === '1';
+    for (const x of $('markers').children) x.setAttribute('aria-pressed', String(x === b));
+    scheduleMerge();
+  });
+
+  $('tempo').addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    S.tempoSteps = b.dataset.v === '1';
+    for (const x of $('tempo').children) x.setAttribute('aria-pressed', String(x === b));
+    render();
+  });
+
+  // ---------- merge preview ----------
+  let tmr = null;
+  function scheduleMerge() { clearTimeout(tmr); tmr = setTimeout(doMerge, 120); }
+  function doMerge() {
+    S.result = null; S.error = null;
+    if (S.projects.length >= 1) {
+      try {
+        const bp = base();
+        const parts = S.projects.map(p => ({ proj: p.proj, offsetTicks: p.offsetBars * bp.proj.ppq * 4, pid: p.id }));
+        const res = FLP.mergeFLP(parts, { baseIndex: S.projects.indexOf(bp), separateTracks: S.separateTracks, groupPerProject: S.groupPerProject, projectMarkers: S.projectMarkers, tempoSteps: S.tempoSteps });
+        const out = FLP.parseFLP(res.bytes, 'result.flp');
+        S.result = { res, out };
+      } catch (ex) { S.error = ex.message; console.error(ex); }
+    }
+    renderResult();
+  }
+
+  function renderResult() {
+    const mix = $('mix'), sum = $('sum');
+    if (!S.projects.length) {
+      mix.innerHTML = '<div class="tl-empty"><strong>No mixer to show</strong>This shows which inserts each project gets after splicing.</div>';
+      $('mix-info').textContent = '';
+      sum.innerHTML = '<div class="tl-empty" style="padding:24px 0"><strong>Waiting for projects</strong>At least two are needed.</div>';
+      return;
+    }
+    if (S.error) {
+      mix.innerHTML = '';
+      sum.innerHTML = `<div class="err" style="margin:0">Splicing failed: ${esc(S.error)}</div>`;
+      return;
+    }
+    if (!S.result) return;
+    const { res, out } = S.result;
+    // insert -> source
+    const src = new Map();
+    res.report.forEach((r, k) => {
+      const p = S.projects[r.index];
+      for (const m of r.inserts) src.set(m.to, { p, from: m.from });
+    });
+    const rows = [];
+    const bp = base();
+    rows.push(`<tr style="--pc:var(${bp.color})"><td class="n">M</td><td><b>Master</b><div class="sub">The other projects' masters are skipped</div></td>
+      <td><span class="chip proj" style="background:var(${bp.color})">${esc(bp.proj.fileName.replace(/\.flp$/i, ''))}</span></td><td class="hide-s num">–</td><td class="hide-s num">${out.inserts[0] ? out.inserts[0].fxCount || 0 : 0}</td></tr>`);
+    const used = out.inserts.filter(i => i.used || src.has(i.n));
+    for (const ins of used) {
+      if (ins.special) continue;
+      const s = src.get(ins.n);
+      const chans = out.channels.filter(c => c.insert === ins.n).map(c => c.name);
+      const title = ins.name || chans[0] || 'Insert ' + ins.n;
+      const col = s && s.p ? s.p.color : '--line';
+      const sel = s && s.p && S.sel === s.p.id ? ' class="is-sel"' : '';
+      rows.push(`<tr style="--pc:var(${col})"${sel}><td class="n">${ins.n}</td>
+        <td class="chn"><b>${esc(title)}</b><div class="sub">${chans.length ? esc(chans.join(', ')) : 'no channel'}${ins.routes.some(r => r) ? ' · sends to ' + ins.routes.filter(r => r).join(', ') : ''}</div></td>
+        <td>${s && s.p ? `<span class="chip proj" style="background:var(${s.p.color})">${esc(s.p.proj.fileName.replace(/\.flp$/i, ''))}</span>` : '<span class="chip mute">unknown</span>'}</td>
+        <td class="hide-s num">${s ? s.from : '–'}</td><td class="hide-s num">${ins.fxCount || 0}</td></tr>`);
+    }
+    mix.innerHTML = `<table class="tbl"><thead><tr><th>Insert</th><th>Name and channels</th><th>From</th><th class="hide-s num">Orig.</th><th class="hide-s num">Effects</th></tr></thead><tbody>${rows.join('')}</tbody></table>`;
+    $('mix-info').textContent = `${used.filter(i => !i.special).length} inserts in use of ${out.inserts.length - 2}`;
+
+    const bars = Math.ceil(out.lengthTicks / (out.ppq * 4));
+    const few = S.projects.length < 2;
+    const warns = res.warnings.slice();
+    if (few) warns.unshift('Add at least one more project to splice.');
+    if (!S.separateTracks) {
+      const spans = S.projects.filter(p => lenBars(p)).map(p => ({ p, a: p.offsetBars, b: p.offsetBars + lenBars(p) }));
+      for (let i = 0; i < spans.length; i++) for (let j = i + 1; j < spans.length; j++)
+        if (spans[i].a < spans[j].b && spans[j].a < spans[i].b)
+          warns.push(`${spans[i].p.proj.fileName} and ${spans[j].p.proj.fileName} overlap in time on the same tracks. Choose Separate tracks or move them apart.`);
+    }
+    const fname = $('fname') ? $('fname').value : defaultName();
+    sum.innerHTML = `
+      <div class="figs">
+        <div class="fig"><b>${bars}</b><span class="micro">bars</span></div>
+        <div class="fig"><b>${out.channels.length}</b><span class="micro">channels</span></div>
+        <div class="fig"><b>${out.patterns.length}</b><span class="micro">patterns</span></div>
+      </div>
+      ${warns.length ? `<ul class="warns">${warns.map(w => `<li><span class="chip warn">Note</span><span>${esc(w)}</span></li>`).join('')}</ul>` : '<ul class="warns"><li><span class="chip ok">Ok</span><span>No conflicts found.</span></li></ul>'}
+      <div class="field"><label class="micro" for="fname">File name</label><input id="fname" value="${esc(fname)}" spellcheck="false"></div>
+      <button class="btn primary" id="save" ${few ? 'disabled' : ''}>${ICON.dl}Splice and download</button>
+      <div id="saved"></div>
+      <p class="note">${S.tempoSteps ? 'A tempo automation clip switches to each project\'s BPM where it starts.' : `The base tempo (${out.tempo ?? '–'} BPM) is used for the whole song.`} The base master and project settings are kept. Samples keep their original paths. Open the result in the newest FL version you have.</p>`;
+    $('save').addEventListener('click', save);
+  }
+  function defaultName() {
+    return S.projects.map(p => p.proj.fileName.replace(/\.flp$/i, '')).slice(0, 3).join('+') + '.flp';
+  }
+  function save() {
+    if (!S.result) return;
+    let name = ($('fname').value || defaultName()).trim();
+    if (!/\.flp$/i.test(name)) name += '.flp';
+    const blob = new Blob([S.result.res.bytes], { type: 'application/octet-stream' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    $('saved').innerHTML = `<div class="done">${esc(name)} saved (${(blob.size / 1048576).toFixed(1)} MB). Put it in the same folder as the originals if they use relative sample paths.</div>`;
+  }
+
+  render();
+})();
+</script>
+</body>
+</html>
