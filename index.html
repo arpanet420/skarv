@@ -202,7 +202,7 @@ select{background:var(--raised);border:1px solid var(--line);border-radius:var(-
         <div class="seg" id="tracks"><button data-v="1" aria-pressed="true" title="Each project gets its own playlist tracks below the previous one">Separate</button><button data-v="0" title="Clips keep the track numbers from the original">Shared</button></div>
       </div>
       <div class="ctl"><span class="micro">Channel groups</span>
-        <div class="seg" id="groups"><button data-v="1" aria-pressed="true" title="One Channel rack filter group per project">Per project</button><button data-v="0" title="Keep each project's own groups">Keep</button></div>
+        <div class="seg" id="groups"><button data-v="1" aria-pressed="true" title="One Channel rack filter group per project, numbered in timeline order">Per project</button><button data-v="0" title="Keep each project's own groups">Keep</button></div>
       </div>
       <div class="ctl"><span class="micro">Mixer colors</span>
         <div class="seg" id="mixcolors"><button data-v="1" aria-pressed="true" title="Color each project's mixer tracks with its color from the timeline">Per project</button><button data-v="0" title="Keep each project's own mixer track colors">Keep</button></div>
@@ -211,7 +211,7 @@ select{background:var(--raised);border:1px solid var(--line);border-radius:var(-
         <div class="seg" id="mixnames"><button data-v="1" aria-pressed="true" title="Name unnamed mixer tracks with the project name and their original insert number">Project + number</button><button data-v="0" title="Leave unnamed mixer tracks unnamed">Keep</button></div>
       </div>
       <div class="ctl"><span class="micro">Markers</span>
-        <div class="seg" id="markers"><button data-v="1" aria-pressed="true" title="Add a time marker with the project name where each project starts">Project names</button><button data-v="0" title="No extra time markers">Off</button></div>
+        <div class="seg" id="markers"><button data-v="1" aria-pressed="true" title="Add a time marker with the project name where each project starts">Project names</button><button data-v="2" title="Project name markers set to Marker loop: FL repeats each project until you jump to another">Marker loops</button><button data-v="0" title="No extra time markers">Off</button></div>
       </div>
       <div class="ctl"><span class="micro">Tempo</span>
         <div class="seg" id="tempo"><button data-v="1" aria-pressed="false" title="Add a tempo automation clip that switches to each project's BPM where it starts">Per project</button><button data-v="0" aria-pressed="true" title="Use the base tempo for the whole song">Base only</button></div>
@@ -237,7 +237,7 @@ select{background:var(--raised);border:1px solid var(--line);border-radius:var(-
 <script>
 (function () {
   'use strict';
-  const S = { projects: [], baseId: null, separateTracks: true, groupPerProject: true, mixerColors: true, mixerNames: true, projectMarkers: true, tempoSteps: false, zoom: 16, sel: null, seq: 0, result: null, error: null };
+  const S = { projects: [], baseId: null, separateTracks: true, groupPerProject: true, mixerColors: true, mixerNames: true, projectMarkers: true, markerLoops: false, tempoSteps: false, zoom: 16, sel: null, seq: 0, result: null, error: null };
   const $ = id => document.getElementById(id);
   const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const PCOL = ['--p1', '--p2', '--p3', '--p4', '--p5', '--p6'];
@@ -439,7 +439,8 @@ select{background:var(--raised);border:1px solid var(--line);border-radius:var(-
 
   $('markers').addEventListener('click', e => {
     const b = e.target.closest('button'); if (!b) return;
-    S.projectMarkers = b.dataset.v === '1';
+    S.projectMarkers = b.dataset.v !== '0';
+    S.markerLoops = b.dataset.v === '2';
     for (const x of $('markers').children) x.setAttribute('aria-pressed', String(x === b));
     scheduleMerge();
   });
@@ -461,7 +462,7 @@ select{background:var(--raised);border:1px solid var(--line);border-radius:var(-
         const bp = base();
         const css = getComputedStyle(document.documentElement);
         const parts = S.projects.map(p => ({ proj: p.proj, offsetTicks: p.offsetBars * bp.proj.ppq * 4, pid: p.id, color: parseInt(css.getPropertyValue(p.color).trim().slice(1), 16) }));
-        const res = FLP.mergeFLP(parts, { baseIndex: S.projects.indexOf(bp), separateTracks: S.separateTracks, groupPerProject: S.groupPerProject, mixerColors: S.mixerColors, mixerNames: S.mixerNames, projectMarkers: S.projectMarkers, tempoSteps: S.tempoSteps });
+        const res = FLP.mergeFLP(parts, { baseIndex: S.projects.indexOf(bp), separateTracks: S.separateTracks, groupPerProject: S.groupPerProject, mixerColors: S.mixerColors, mixerNames: S.mixerNames, projectMarkers: S.projectMarkers, markerLoops: S.markerLoops, tempoSteps: S.tempoSteps });
         const out = FLP.parseFLP(res.bytes, 'result.flp');
         S.result = { res, out };
       } catch (ex) { S.error = ex.message; console.error(ex); }

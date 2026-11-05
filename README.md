@@ -11,7 +11,7 @@ Open `skarv.html` in a browser, drop in your projects, arrange them on the timel
 - The top project is the **base**: its master, mixer layout and project settings are kept. The other projects' masters are skipped.
 - Channels, patterns (including empty, clip-only patterns), playlist clips, time markers and automation links from the other projects are renumbered and added.
 - Mixer inserts in use are appended after the base's, with effects, sends and parameters. In FL 2025+ the mixer grows as needed.
-- Options: separate or shared playlist tracks, one Channel rack group per project, one mixer track color per project (matching the timeline), project name and original insert number on unnamed mixer tracks, a time marker per project, and a tempo automation clip that steps to each project's BPM.
+- Options: separate or shared playlist tracks, one Channel rack group per project (numbered in timeline order), one mixer track color per project (matching the timeline), project name and original insert number on unnamed mixer tracks, a time marker per project (optionally a Marker loop, so FL repeats each project until you jump to another), and a tempo automation clip that steps to each project's BPM.
 
 Tested with projects saved in FL Studio 21, 2024, 2025 and 2026. Always keep your originals.
 

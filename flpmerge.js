@@ -320,7 +320,7 @@
   // ---------- merge ----------
   /**
    * parts: [{ proj, offsetTicks, color }]  (offset in the base project's PPQ, color 0xRRGGBB)
-   * opts:  { baseIndex, separateTracks, groupPerProject, projectMarkers, tempoSteps, mixerColors, mixerNames }
+   * opts:  { baseIndex, separateTracks, groupPerProject, projectMarkers, markerLoops, tempoSteps, mixerColors, mixerNames }
    */
   function mergeFLP(parts, opts) {
     opts = opts || {};
@@ -352,15 +352,21 @@
       : (base.major >= 25 ? EV.CH_ROUTE : EV.CH_ROUTE_OLD);
     let nextSerial = 1;
     for (const c of base.channels) for (const i of c.idx) if (base.events[i].id === EV.CH_SERIAL) nextSerial = Math.max(nextSerial, (base.events[i].v & 0xffff) + 1);
-    // Optional: one channel filter group per project, named after the file
-    const groupFor = proj => {
-      let name = proj.fileName.replace(/\.flp$/i, ''), n = 2;
-      while (groups.includes(name)) name = proj.fileName.replace(/\.flp$/i, '') + ' (' + n++ + ')';
+    // Optional: one channel filter group per project, named after the file and numbered in timeline order.
+    // FL lists the groups sorted with names starting with a digit first, so the projects come in order,
+    // ahead of FL's own "Automation" and "Unsorted".
+    const timeline = parts.map((p, k) => k).sort((a, b) => (parts[a].offsetTicks || 0) - (parts[b].offsetTicks || 0) || a - b);
+    const width = String(parts.length).length;
+    const groupFor = pi => {
+      const file = parts[pi].proj.fileName.replace(/\.flp$/i, '');
+      const label = String(timeline.indexOf(pi) + 1).padStart(width, '0') + ' ' + file;
+      let name = label, n = 2;
+      while (groups.includes(name)) name = label + ' (' + n++ + ')';
       groups.push(name);
       return groups.length - 1;
     };
     if (opts.groupPerProject) {
-      const g = groupFor(base);
+      const g = groupFor(baseIndex);
       for (const c of base.channels) {
         const gi = c.idx.find(i => ev[i].id === EV.CH_GROUP);
         if (gi !== undefined) ev[gi].v = g;
@@ -411,7 +417,7 @@
       }
       // Filter groups
       const grpMap = new Map();
-      if (opts.groupPerProject) { const g = groupFor(P); P.groups.forEach((_, k) => grpMap.set(k, g)); grpMap.set(0, g); }
+      if (opts.groupPerProject) { const g = groupFor(pi); P.groups.forEach((_, k) => grpMap.set(k, g)); grpMap.set(0, g); }
       else P.groups.forEach((g, k) => { let j = groups.indexOf(g); if (j < 0) { groups.push(g); j = groups.length - 1; } grpMap.set(k, j); });
 
       // Patterns
@@ -600,8 +606,11 @@
         data.set(tmplData.slice(165), 21 + pts.length * 24);
         const id = nextChan++;
         const blk = [{ id: EV.CH_NEW, v: id, ext: null }];
+        // FL puts automation clips in its "Automation" filter group; the template's 0 is whatever sorts first
+        const autoGroup = groups.findIndex(g => g.toLowerCase() === 'automation');
         for (const [eid, val] of TEMPO_TMPL.chan) {
           if (eid === EV.CH_ROUTE || eid === EV.CH_ROUTE_OLD) { blk.push({ id: baseRouteId, v: 0, ext: null }); continue; }
+          if (eid === EV.CH_GROUP && autoGroup >= 0) { blk.push({ id: eid, v: autoGroup, ext: null }); continue; }
           if (eid === 234) { blk.push({ id: 234, d: data, ext: null }); continue; }
           blk.push(typeof val === 'string' ? { id: eid, d: hex(val), ext: null } : { id: eid, v: val, ext: null });
         }
@@ -624,12 +633,20 @@
       }
     }
 
-    // Time marker with the project name where each project starts
+    // Time marker with the project name where each project starts. With markerLoops it is a "Marker loop": FL
+    // repeats from it to the next marker (of any kind), so each project plays on its own until a jump to another.
     if (opts.projectMarkers) {
-      parts.forEach(part => {
-        const pos = Math.max(0, Math.round(part.offsetTicks || 0)) & 0x03ffffff;
+      parts.forEach((part, pi) => {
+        const pos = Math.max(0, Math.round(part.offsetTicks || 0)) & MARKER_TICKS;
+        if (opts.markerLoops) {
+          const P = part.proj;
+          const end = P.mixStart >= 0 ? P.mixStart : P.events.length;
+          let own = 0;
+          for (let i = P.firstArr; i >= 0 && i < end; i++) if (P.events[i].id === EV.MARKER_POS) own++;
+          if (own) warn.push(`${P.fileName} has ${own} time marker${own > 1 ? 's' : ''} of its own: its Marker loop ends at the first one.`);
+        }
         newMarkers.push([
-          { id: EV.MARKER_POS, v: pos, ext: null },
+          { id: EV.MARKER_POS, v: (opts.markerLoops ? (MARKER_LOOP << 24) | pos : pos) >>> 0, ext: null },
           { id: 33, v: 4, ext: null }, { id: 34, v: 4, ext: null },
           { id: 46, v: 0, ext: null }, { id: 45, v: 0, ext: null }, { id: 168, v: 0, ext: null }, { id: 101, v: 0, ext: null },
           { id: 205, d: utf16z(part.proj.fileName.replace(/\.flp$/i, '')), ext: null },
@@ -733,7 +750,19 @@
       if (patInsertAt < 0) patInsertAt = firstChanIdx >= 0 ? firstChanIdx : base.firstArr;
     }
     if (linkInsertAt < 0) linkInsertAt = firstChanIdx >= 0 ? firstChanIdx : base.firstArr;
-    const newGroupEvs = groups.slice(base.groups.length).map(g => ({ id: EV.GROUP_NAME, d: utf16z(g), ext: null }));
+    // FL keeps the filter group names sorted and reads a channel's group (event 145) as an index into that order.
+    // Names added after the base's would be sorted on load and every index would point at the wrong group, so
+    // with new names the whole list is written in FL's order and the channels' indexes follow.
+    let newGroupEvs = [];
+    if (groups.length > base.groups.length) {
+      const order = groups.map((name, k) => k).sort((a, b) => compareGroupNames(groups[a], groups[b]) || a - b);
+      const remap = new Map(order.map((from, to) => [from, to]));
+      for (let k = 0; k < ev.length; k++) if (ev[k].id === EV.GROUP_NAME && base.tag[k] && base.tag[k].sec === 'pre') ev[k].drop = true;
+      const regroup = e => { if (e.id === EV.CH_GROUP && remap.has(e.v)) e.v = remap.get(e.v); };
+      for (const e of ev) { regroup(e); if (e.after) e.after.forEach(regroup); }
+      for (const blk of newChannels) blk.forEach(regroup);
+      newGroupEvs = order.map(k => ({ id: EV.GROUP_NAME, d: utf16z(groups[k]), ext: null }));
+    }
     const firstTrackIdx = ev.findIndex((e, i) => i > base.firstArr && e.id === EV.TRACK_DATA);
 
     for (let i = 0; i < ev.length; i++) {
@@ -759,8 +788,35 @@
   }
 
   function hasInsertName(blk) { const e = blk.find(x => x.id === EV.INS_NAME); return !!(e && decodeText(e.d)); }
-  function shiftMarker(v, off) { const pos = v & 0x03ffffff; return ((v & ~0x03ffffff) | ((pos + off) & 0x03ffffff)) >>> 0; }
-  function scaleMarker(v, r) { if (r === 1) return v; const pos = v & 0x03ffffff; return ((v & ~0x03ffffff) | (Math.round(pos * r) & 0x03ffffff)) >>> 0; }
+  // FL's order for filter group names, read from every saved project at hand (29 with two or more groups):
+  // case-insensitive, character by character, and runs of digits compare by value ("5beautiful" < "06benji",
+  // "C 9" < "C10").
+  function compareGroupNames(a, b) {
+    const x = a.toLowerCase(), y = b.toLowerCase(), digit = c => c >= '0' && c <= '9';
+    let i = 0, j = 0;
+    while (i < x.length && j < y.length) {
+      if (digit(x[i]) && digit(y[j])) {
+        let i2 = i, j2 = j;
+        while (i2 < x.length && digit(x[i2])) i2++;
+        while (j2 < y.length && digit(y[j2])) j2++;
+        const d = Number(x.slice(i, i2)) - Number(y.slice(j, j2));
+        if (d) return d;
+        i = i2; j = j2;
+        continue;
+      }
+      if (x[i] !== y[j]) return x[i] < y[j] ? -1 : 1;
+      i++; j++;
+    }
+    return (x.length - i) - (y.length - j);
+  }
+
+  // Event 148 is `action << 24 | ticks`: the top byte is the marker's action (0 none, 1 Marker loop, 2 Marker skip,
+  // 3 Marker pause, 4 Loop, 5 Start, 8 time signature ...; read in FL 2026 and in LYNX-SHARE's notes), so only the
+  // low 24 bits move. A 26-bit mask moved the action's low bits with the position.
+  const MARKER_TICKS = 0x00ffffff;
+  const MARKER_LOOP = 1;
+  function shiftMarker(v, off) { const pos = v & MARKER_TICKS; return ((v & ~MARKER_TICKS) | ((pos + off) & MARKER_TICKS)) >>> 0; }
+  function scaleMarker(v, r) { if (r === 1) return v; const pos = v & MARKER_TICKS; return ((v & ~MARKER_TICKS) | (Math.round(pos * r) & MARKER_TICKS)) >>> 0; }
   function hex(s) { const d = new Uint8Array(s.length / 2); for (let i = 0; i < d.length; i++) d[i] = parseInt(s.substr(i * 2, 2), 16); return d; }
   function utf16z(s) { const d = new Uint8Array((s.length + 1) * 2); for (let i = 0; i < s.length; i++) w16(d, i * 2, s.charCodeAt(i)); return d; }
 
