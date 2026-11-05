@@ -12,7 +12,7 @@
     CH_NAME: 203, CH_PLUGIN_NAME: 201, CH_TYPE: 21, CH_SAMPLE: 196,
     PAT_NAME: 193, PAT_NOTES: 224, PAT_CTRL: 223,
     PLAYLIST: 233, TRACK_DATA: 238, TRACK_NAME: 239, MARKER_POS: 148,
-    INS_FLAGS: 236, INS_ROUTE: 235, INS_OUT: 147, INS_NAME: 204, INS_COLOR: 149,
+    INS_FLAGS: 236, INS_ROUTE: 235, INS_OUT: 147, INS_NAME: 204, INS_COLOR: 149, INS_HAS_COLOR: 42,
     MIX_PARAMS: 225, REMOTE_LINK: 227, GROUP_NAME: 231, PLUGIN_WRAPPER: 212,
     EXT_PREFIX: 172,
   };
@@ -319,8 +319,8 @@
 
   // ---------- merge ----------
   /**
-   * parts: [{ proj, offsetTicks }]  (offset in the base project's PPQ)
-   * opts:  { baseIndex, separateTracks }
+   * parts: [{ proj, offsetTicks, color }]  (offset in the base project's PPQ, color 0xRRGGBB)
+   * opts:  { baseIndex, separateTracks, groupPerProject, projectMarkers, tempoSteps, mixerColors, mixerNames }
    */
   function mergeFLP(parts, opts) {
     opts = opts || {};
@@ -637,6 +637,35 @@
       });
     }
 
+    // Per project look of the mixer tracks. Master and "current" are left alone.
+    for (const r of report) {
+      const rgb = parts[r.index].color;
+      const project = parts[r.index].proj.fileName.replace(/\.flp$/i, '');
+      for (const m of r.inserts) {
+        const blk = insertBlocks[m.to];
+        // Color replaces the insert's own. Stored as 0x00BBGGRR, first in the block; FL ignores it unless event 42 is set.
+        if (opts.mixerColors && rgb !== undefined) {
+          const v = ((rgb & 0xff) << 16) | (rgb & 0xff00) | ((rgb >>> 16) & 0xff);
+          const e = blk.find(x => x.id === EV.INS_COLOR);
+          if (e) e.v = v;
+          else blk.unshift({ id: EV.INS_COLOR, v, ext: null });
+          const flag = blk.find(x => x.id === EV.INS_HAS_COLOR);
+          if (flag) flag.v = 1;
+          else blk.splice(1, 0, { id: EV.INS_HAS_COLOR, v: 1, ext: null });
+        }
+        // Unnamed inserts become "<project> <original insert number>"; FL keeps the name right before event 236
+        if (opts.mixerNames && !hasInsertName(blk)) {
+          const d = utf16z(project + ' ' + m.from);
+          const e = blk.find(x => x.id === EV.INS_NAME);
+          if (e) e.d = d;
+          else {
+            const at = blk.findIndex(x => x.id === EV.INS_FLAGS);
+            blk.splice(at >= 0 ? at : blk.findIndex(x => x.id === EV.INS_HAS_COLOR) + 1, 0, { id: EV.INS_NAME, d, ext: null });
+          }
+        }
+      }
+    }
+
     // ---------- assemble ----------
     // 1. Mixer: insert count, blocks, params
     const outMix = [];
@@ -729,6 +758,7 @@
     return { bytes, warnings: warn, report, inserts: insertBlocks.length };
   }
 
+  function hasInsertName(blk) { const e = blk.find(x => x.id === EV.INS_NAME); return !!(e && decodeText(e.d)); }
   function shiftMarker(v, off) { const pos = v & 0x03ffffff; return ((v & ~0x03ffffff) | ((pos + off) & 0x03ffffff)) >>> 0; }
   function scaleMarker(v, r) { if (r === 1) return v; const pos = v & 0x03ffffff; return ((v & ~0x03ffffff) | (Math.round(pos * r) & 0x03ffffff)) >>> 0; }
   function hex(s) { const d = new Uint8Array(s.length / 2); for (let i = 0; i < d.length; i++) d[i] = parseInt(s.substr(i * 2, 2), 16); return d; }
